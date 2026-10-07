@@ -22,6 +22,9 @@ log = logging.getLogger(__name__)
 # Blocos com confiança abaixo disso não entram na tabela (mesmo corte do original).
 CONFIANCA_MINIMA_PERCENT = 10.0
 
+# MAX_PATH: sem "caminhos longos" habilitado no Windows, nada acima disso abre.
+LIMITE_CAMINHO_WINDOWS = 260
+
 COLUNAS = [
     "original_file",
     "block_file",
@@ -69,7 +72,14 @@ def processar_arquivo(
         inicio = int(bloco["start_time"] * sample_rate)
         fim = int(bloco["end_time"] * sample_rate)
         nome_bloco = nome_arquivo_bloco(audio_basename, bloco)
-        sf.write(os.path.join(pasta_blocos, nome_bloco), audio_filtrado[inicio:fim], sample_rate)
+        caminho_bloco = os.path.abspath(os.path.join(pasta_blocos, nome_bloco))
+        if os.name == "nt" and len(caminho_bloco) >= LIMITE_CAMINHO_WINDOWS:
+            # libsndfile só devolve "System error" nesse caso — melhor dizer o porquê.
+            raise OSError(
+                f"Caminho com {len(caminho_bloco)} caracteres (limite do Windows: "
+                f"{LIMITE_CAMINHO_WINDOWS - 1}). Escolha uma pasta de saída mais curta: {caminho_bloco}"
+            )
+        sf.write(caminho_bloco, audio_filtrado[inicio:fim], sample_rate)
 
         if classificador is not None:
             resultado = classificar_bloco(classificador, audio_filtrado, bloco)
