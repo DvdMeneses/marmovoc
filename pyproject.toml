@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "marmovoc"
+version = "0.1.0"
+description = "Segmentação e classificação de vocalizações de saguis (a partir de marmoset_analysis)"
+requires-python = ">=3.9"
+dependencies = [
+    "numpy",
+    "scipy",
+    "soundfile",
+    "pandas",
+]
+
+[project.optional-dependencies]
+# Classificação com o ResNet50 do marmaudio
+classificacao = ["torch", "torchvision"]
+# marmovoc._vendor.marmaudio.denoise
+denoise = ["noisereduce"]
+dev = ["pytest"]
+
+[project.scripts]
+marmovoc = "marmovoc.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
