@@ -14,8 +14,7 @@ from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 
-NOME_MODELO = "CLF_resnet50_logMel128_trainsplit_wo_brown_wo_vocs.stdc"
-NOME_ROTULOS = "CLF_resnet50_logMel128_trainsplit_wo_brown_wo_vocs_labels_used.tsv"
+from marmovoc import modelos
 
 # O frontend do modelo (MelFilter em marmaudio/classifier.py) foi treinado
 # com áudio a 96 kHz. Áudio gravado em outra taxa não é reamostrado aqui —
@@ -38,10 +37,17 @@ class Classificador:
         self.modelo = load_classifier(caminho_modelo, rotulos)
 
     @classmethod
-    def da_pasta(cls, pasta_modelos: str) -> "Classificador":
-        """Carrega a partir da pasta `Models\\Models` com os nomes de arquivo padrão."""
+    def da_pasta(cls, pasta_modelos: Optional[str] = None) -> "Classificador":
+        """Carrega o .stdc e o .tsv de `pasta_modelos` (ex.: `Models\\Models`).
+        Sem pasta, usa o cache — e baixa do Zenodo na primeira vez."""
 
-        return cls(os.path.join(pasta_modelos, NOME_MODELO), os.path.join(pasta_modelos, NOME_ROTULOS))
+        if pasta_modelos is None:
+            return cls(*modelos.baixar_modelos())
+
+        encontrados = modelos.localizar(pasta_modelos)
+        if encontrados is None:
+            raise FileNotFoundError(f"Classificador (.stdc + .tsv) não encontrado em {pasta_modelos}")
+        return cls(*encontrados)
 
     def classificar(self, segmento: np.ndarray) -> Tuple[str, float]:
         """Devolve (rótulo, confiança em %) para um trecho de áudio."""
