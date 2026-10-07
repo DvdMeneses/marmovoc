@@ -16,6 +16,7 @@ Uso rápido:
 
 from marmovoc.duracao import duracao_pasta, escrever_durations_txt
 from marmovoc.pipeline import processar_arquivo, processar_arquivos
+from marmovoc.qualidade import PLANURA_MAXIMA, planura_espectral
 from marmovoc.segmentacao import (
     ParametrosSegmentacao,
     detect_vocalizations,
@@ -36,4 +37,4 @@ def __getattr__(nome):
     raise AttributeError(nome)
 
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"

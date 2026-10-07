@@ -30,6 +30,7 @@ from ttkbootstrap.style.theme import Theme
 
 from marmovoc.classificacao import SAMPLE_RATE_MODELO
 from marmovoc.pipeline import LIMITE_CAMINHO_WINDOWS
+from marmovoc.qualidade import PLANURA_MAXIMA
 
 NOME_PASTA_SAIDA = "Vocalizations_Extracted"
 
@@ -79,8 +80,8 @@ class JanelaMarmovoc:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title("marmovoc — vocalizações de saguis")
-        self.root.geometry("900x880")
-        self.root.minsize(760, 760)
+        self.root.geometry("900x910")
+        self.root.minsize(760, 790)
 
         self._arquivos: List[str] = []
         self._duracoes: Dict[str, float] = {}
@@ -185,6 +186,14 @@ class JanelaMarmovoc:
             variable=self.espectrogramas_var,
             bootstyle="primary",
         ).grid(row=2, column=0, columnspan=2, sticky="w", pady=(8, 0))
+
+        self.filtro_tonalidade_var = tk.BooleanVar(value=True)
+        tb.Checkbutton(
+            card,
+            text="Descartar ruídos de banda larga (cliques, impactos, chiados) antes de classificar",
+            variable=self.filtro_tonalidade_var,
+            bootstyle="primary",
+        ).grid(row=3, column=0, columnspan=2, sticky="w", pady=(6, 0))
 
     def _montar_classificacao(self, pai) -> None:
         card = tb.Labelframe(pai, text="3   Classificação", bootstyle="primary")
@@ -388,6 +397,7 @@ class JanelaMarmovoc:
             args=(
                 list(self._arquivos), saida, self.classificar_var.get(),
                 self.modelos_var.get().strip() or None, self.espectrogramas_var.get(),
+                self.filtro_tonalidade_var.get(),
             ),
             daemon=True,
         ).start()
@@ -395,6 +405,7 @@ class JanelaMarmovoc:
     def _rodar(
         self, arquivos: List[str], saida: str, classificar: bool, pasta_modelos: Optional[str],
         espectrogramas: bool = False,
+        filtro_tonalidade: bool = True,
     ) -> None:
         """Thread de fundo: só fala com a UI pela fila."""
 
@@ -418,7 +429,10 @@ class JanelaMarmovoc:
                 enviar("status", f"Processando {i} de {len(arquivos)}: {os.path.basename(caminho)}")
                 enviar("arquivo", caminho, "processando…", "ativo")
                 try:
-                    resultado = processar_arquivo(caminho, saida, classificador, espectrogramas=espectrogramas)
+                    resultado = processar_arquivo(
+                        caminho, saida, classificador, espectrogramas=espectrogramas,
+                        planura_maxima=PLANURA_MAXIMA if filtro_tonalidade else None,
+                    )
                     linhas.extend(resultado)
                     enviar("arquivo", caminho, f"✓  {len(resultado)} bloco(s)", "ok")
                     enviar("log", f"{os.path.basename(caminho)}: {len(resultado)} bloco(s)")

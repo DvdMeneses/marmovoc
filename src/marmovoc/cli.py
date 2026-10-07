@@ -16,6 +16,7 @@ from typing import List
 
 from marmovoc.duracao import escrever_durations_txt
 from marmovoc.pipeline import processar_arquivos
+from marmovoc.qualidade import PLANURA_MAXIMA
 from marmovoc.segmentacao import ParametrosSegmentacao
 
 ENV_MODELOS = "MARMOVOC_MODELOS"
@@ -49,7 +50,8 @@ def _cmd_segmentar(args) -> int:
     os.makedirs(args.saida, exist_ok=True)
 
     df = processar_arquivos(
-        wavs, args.saida, classificador, params, csv_saida=csv_saida, espectrogramas=args.espectrogramas
+        wavs, args.saida, classificador, params, csv_saida=csv_saida, espectrogramas=args.espectrogramas,
+        planura_maxima=None if args.sem_filtro_tonalidade else args.planura_maxima,
     )
 
     print(f"{len(df)} bloco(s) em {len(wavs)} arquivo(s). CSV: {csv_saida}")
@@ -94,6 +96,14 @@ def main(argv=None) -> int:
     p.add_argument(
         "--espectrogramas", action="store_true",
         help="salva um PNG por bloco e a visão geral da gravação com os blocos marcados",
+    )
+    p.add_argument(
+        "--planura-maxima", type=float, default=PLANURA_MAXIMA,
+        help="blocos com planura espectral acima disso são descartados como ruído de banda larga",
+    )
+    p.add_argument(
+        "--sem-filtro-tonalidade", action="store_true",
+        help="não descarta ruído de banda larga (reproduz o script original)",
     )
     p.set_defaults(func=_cmd_segmentar)
 
