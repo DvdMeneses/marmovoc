@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "marmovoc"
-version = "0.3.0"
+version = "0.4.0"
 description = "Segmentação e classificação de vocalizações de saguis (a partir de marmoset_analysis)"
 requires-python = ">=3.9"
 dependencies = [
@@ -13,6 +13,7 @@ dependencies = [
     "soundfile",
     "pandas",
     "ttkbootstrap>=2.2",  # marmovoc-gui (mesmo tema do Marmosync)
+    "matplotlib",         # espectrogramas (PNG)
 ]
 
 [project.optional-dependencies]

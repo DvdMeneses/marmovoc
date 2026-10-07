@@ -79,8 +79,8 @@ class JanelaMarmovoc:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title("marmovoc — vocalizações de saguis")
-        self.root.geometry("900x840")
-        self.root.minsize(760, 720)
+        self.root.geometry("900x880")
+        self.root.minsize(760, 760)
 
         self._arquivos: List[str] = []
         self._duracoes: Dict[str, float] = {}
@@ -177,6 +177,14 @@ class JanelaMarmovoc:
             foreground=COR_SUAVE,
             font=(FONTE, 9),
         ).grid(row=1, column=0, columnspan=2, sticky="w", pady=(6, 0))
+
+        self.espectrogramas_var = tk.BooleanVar(value=True)
+        tb.Checkbutton(
+            card,
+            text="Salvar espectrogramas (um PNG por bloco + visão geral da gravação) para conferir os blocos",
+            variable=self.espectrogramas_var,
+            bootstyle="primary",
+        ).grid(row=2, column=0, columnspan=2, sticky="w", pady=(8, 0))
 
     def _montar_classificacao(self, pai) -> None:
         card = tb.Labelframe(pai, text="3   Classificação", bootstyle="primary")
@@ -377,11 +385,17 @@ class JanelaMarmovoc:
 
         threading.Thread(
             target=self._rodar,
-            args=(list(self._arquivos), saida, self.classificar_var.get(), self.modelos_var.get().strip() or None),
+            args=(
+                list(self._arquivos), saida, self.classificar_var.get(),
+                self.modelos_var.get().strip() or None, self.espectrogramas_var.get(),
+            ),
             daemon=True,
         ).start()
 
-    def _rodar(self, arquivos: List[str], saida: str, classificar: bool, pasta_modelos: Optional[str]) -> None:
+    def _rodar(
+        self, arquivos: List[str], saida: str, classificar: bool, pasta_modelos: Optional[str],
+        espectrogramas: bool = False,
+    ) -> None:
         """Thread de fundo: só fala com a UI pela fila."""
 
         enviar = lambda *msg: self._fila.put(msg)
@@ -404,7 +418,7 @@ class JanelaMarmovoc:
                 enviar("status", f"Processando {i} de {len(arquivos)}: {os.path.basename(caminho)}")
                 enviar("arquivo", caminho, "processando…", "ativo")
                 try:
-                    resultado = processar_arquivo(caminho, saida, classificador)
+                    resultado = processar_arquivo(caminho, saida, classificador, espectrogramas=espectrogramas)
                     linhas.extend(resultado)
                     enviar("arquivo", caminho, f"✓  {len(resultado)} bloco(s)", "ok")
                     enviar("log", f"{os.path.basename(caminho)}: {len(resultado)} bloco(s)")

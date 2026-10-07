@@ -15,6 +15,7 @@ from typing import Any, Dict, Iterable, List, Optional
 import soundfile as sf
 
 from marmovoc.classificacao import Classificador, classificar_bloco
+from marmovoc.espectrograma import salvar_espectrograma_bloco, salvar_visao_geral
 from marmovoc.segmentacao import ParametrosSegmentacao, nome_arquivo_bloco, segmentar
 
 log = logging.getLogger(__name__)
@@ -47,9 +48,15 @@ def processar_arquivo(
     classificador: Optional[Classificador] = None,
     params: ParametrosSegmentacao = ParametrosSegmentacao(),
     confianca_minima: float = CONFIANCA_MINIMA_PERCENT,
+    espectrogramas: bool = False,
 ) -> List[Dict[str, Any]]:
     """Segmenta um WAV, salva cada bloco em `pasta_saida/<nome do wav>/` e
     devolve uma linha por bloco (colunas em `COLUNAS`).
+
+    Com `espectrogramas`, salva também um PNG por bloco (ao lado do .wav,
+    inclusive dos descartados por confiança baixa) e
+    `<nome do wav>_espectrograma.png` com a gravação inteira e os blocos
+    marcados (requer matplotlib).
 
     Sem `classificador`, todos os blocos entram na tabela com rótulo e
     confiança vazios — útil para só recortar, sem precisar de torch.
@@ -65,6 +72,7 @@ def processar_arquivo(
     log.info("%s: %d Hz, %d blocos", os.path.basename(caminho_wav), sample_rate, len(blocos))
 
     linhas: List[Dict[str, Any]] = []
+    marcados: List[Dict[str, Any]] = []  # blocos para a visão geral (com espectrogramas=True)
     for bloco in blocos:
         if bloco["curto"]:
             continue
@@ -83,10 +91,28 @@ def processar_arquivo(
 
         if classificador is not None:
             resultado = classificar_bloco(classificador, audio_filtrado, bloco)
-            if resultado is None or resultado["confidence_percent"] < confianca_minima:
-                continue
+            aceito = resultado is not None and resultado["confidence_percent"] >= confianca_minima
+            if resultado is None:
+                rotulo = "não classificado"
+            else:
+                rotulo = f"{resultado['predicted_label']} {resultado['confidence_percent']:.0f}%"
+                if not aceito:
+                    rotulo += " (descartado)"
         else:
             resultado = {"predicted_label": "", "confidence_percent": None, "energy_max": None}
+            aceito, rotulo = True, ""
+
+        if espectrogramas:
+            marcados.append({"start_time": bloco["start_time"], "end_time": bloco["end_time"],
+                             "rotulo": f"#{bloco['index']} {rotulo}".strip()})
+            salvar_espectrograma_bloco(
+                audio_data, sample_rate, bloco["start_time"], bloco["end_time"],
+                os.path.splitext(caminho_bloco)[0] + ".png",
+                titulo=f"{nome_bloco}   —   {rotulo or 'segmentado'}", cutoff_hz=params.cutoff_hz,
+            )
+
+        if not aceito:
+            continue
 
         energia = resultado["energy_max"]
         linhas.append(
@@ -106,6 +132,14 @@ def processar_arquivo(
             }
         )
 
+    if espectrogramas:
+        salvar_visao_geral(
+            audio_data, sample_rate, marcados,
+            os.path.join(pasta_blocos, f"{audio_basename}_espectrograma.png"),
+            titulo=f"{os.path.basename(caminho_wav)}   —   {len(marcados)} bloco(s) detectado(s)",
+            cutoff_hz=params.cutoff_hz,
+        )
+
     return linhas
 
 
@@ -115,6 +149,7 @@ def processar_arquivos(
     classificador: Optional[Classificador] = None,
     params: ParametrosSegmentacao = ParametrosSegmentacao(),
     csv_saida: Optional[str] = None,
+    espectrogramas: bool = False,
 ):
     """Roda `processar_arquivo` em vários WAVs (um erro não interrompe os
     outros) e devolve um DataFrame. Com `csv_saida`, grava também o CSV
@@ -125,7 +160,7 @@ def processar_arquivos(
     todas: List[Dict[str, Any]] = []
     for caminho in caminhos_wav:
         try:
-            todas.extend(processar_arquivo(caminho, pasta_saida, classificador, params))
+            todas.extend(processar_arquivo(caminho, pasta_saida, classificador, params, espectrogramas=espectrogramas))
         except Exception as e:
             log.error("Erro ao processar %s: %s", caminho, e)
 

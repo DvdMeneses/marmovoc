@@ -48,7 +48,9 @@ def _cmd_segmentar(args) -> int:
     csv_saida = args.csv or os.path.join(args.saida, "vocalization_analysis_corrected.csv")
     os.makedirs(args.saida, exist_ok=True)
 
-    df = processar_arquivos(wavs, args.saida, classificador, params, csv_saida=csv_saida)
+    df = processar_arquivos(
+        wavs, args.saida, classificador, params, csv_saida=csv_saida, espectrogramas=args.espectrogramas
+    )
 
     print(f"{len(df)} bloco(s) em {len(wavs)} arquivo(s). CSV: {csv_saida}")
     if classificador is not None and len(df):
@@ -89,6 +91,10 @@ def main(argv=None) -> int:
     p.add_argument("--csv", help="caminho do CSV (padrão: <saida>/vocalization_analysis_corrected.csv)")
     p.add_argument("--cutoff", type=float, default=ParametrosSegmentacao.cutoff_hz, help="passa-alta em Hz")
     p.add_argument("--merge", type=float, default=ParametrosSegmentacao.merge_threshold, help="silêncio máximo (s) dentro de um bloco")
+    p.add_argument(
+        "--espectrogramas", action="store_true",
+        help="salva um PNG por bloco e a visão geral da gravação com os blocos marcados",
+    )
     p.set_defaults(func=_cmd_segmentar)
 
     p = sub.add_parser("duracao", help="grava durations.txt em cada subpasta de blocos")

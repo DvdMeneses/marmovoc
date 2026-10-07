@@ -3,7 +3,7 @@
 **Segmentação e classificação automáticas de vocalizações de saguis (*Callithrix jacchus*) em gravações contínuas de experimentos comportamentais.**
 
 ![Python](https://img.shields.io/badge/python-%E2%89%A53.9-3776AB?logo=python&logoColor=white)
-![Versão](https://img.shields.io/badge/vers%C3%A3o-0.3.0-006666)
+![Versão](https://img.shields.io/badge/vers%C3%A3o-0.4.0-006666)
 ![Testado em](https://img.shields.io/badge/testado%20em-Windows-0078D6)
 
 O `marmovoc` recebe o áudio completo de uma sessão experimental (um arquivo WAV de vários minutos), localiza os trechos com vocalização, recorta cada trecho em um arquivo próprio e atribui a ele um tipo de chamada — Phee, Twitter, Trill, Tsik, Seep ou Infant cry — usando o classificador público do conjunto de dados **MarmAudio** (Lamothe et al., 2025).
@@ -60,7 +60,7 @@ pip install "marmovoc[classificacao] @ git+https://github.com/DvdMeneses/marmovo
 
 | Extra | Inclui | Quando usar |
 |---|---|---|
-| *(nenhum)* | numpy, scipy, soundfile, pandas, ttkbootstrap | Apenas segmentação (`--sem-classificar`) |
+| *(nenhum)* | numpy, scipy, soundfile, pandas, ttkbootstrap, matplotlib | Apenas segmentação (`--sem-classificar`) e espectrogramas |
 | `classificacao` | torch, torchvision | Segmentação e classificação |
 | `denoise` | noisereduce | Função de redução de ruído do MarmAudio (`_vendor.marmaudio.denoise`) |
 | `dev` | pytest | Desenvolvimento e testes |
@@ -85,7 +85,7 @@ Ambientes sem acesso à internet podem apontar para uma cópia local do modelo c
 marmovoc-gui
 ```
 
-Permite selecionar arquivos ou uma pasta inteira de gravações, escolher a pasta de saída e acompanhar o processamento arquivo a arquivo. A tabela de entrada exibe a duração e a taxa de amostragem de cada gravação, sinalizando taxas inferiores à do treinamento do modelo (96 kHz).
+Permite selecionar arquivos ou uma pasta inteira de gravações, escolher a pasta de saída e acompanhar o processamento arquivo a arquivo. A tabela de entrada exibe a duração e a taxa de amostragem de cada gravação, sinalizando taxas inferiores à do treinamento do modelo (96 kHz). Os espectrogramas de inspeção são gerados por padrão.
 
 ### Linha de comando
 
@@ -108,6 +108,7 @@ marmovoc duracao resultados
 | `--csv` | `<saida>/vocalization_analysis_corrected.csv` | Caminho da tabela de resultados |
 | `--cutoff` | 6000 | Frequência de corte do passa-alta (Hz) |
 | `--merge` | 1.0 | Silêncio máximo (s) entre vocalizações de um mesmo bloco |
+| `--espectrogramas` | desligada | Salva os espectrogramas de inspeção (ver [Saídas](#saídas)) |
 | `-v` | — | Log detalhado |
 
 ### Biblioteca Python
@@ -135,12 +136,25 @@ Com `MARMOSYNC_VOC_MODELOS=auto` no `.env` do Marmosync, a análise é executada
 resultados/
 ├── <gravação>/
 │   ├── <gravação>_block_001_0m9s-0m11s.wav
+│   ├── <gravação>_block_001_0m9s-0m11s.png      (com --espectrogramas)
 │   ├── <gravação>_block_002_0m19s-0m24s.wav
-│   └── …
+│   ├── …
+│   └── <gravação>_espectrograma.png             (com --espectrogramas)
 └── vocalization_analysis_corrected.csv
 ```
 
 Cada bloco é salvo já filtrado (passa-alta), na taxa de amostragem original. O nome do arquivo codifica o índice do bloco e o intervalo (resolução de 1 s), formato consumido por ferramentas de análise posteriores.
+
+### Espectrogramas de inspeção
+
+Opcionais (`--espectrogramas` na linha de comando; ligados por padrão na interface gráfica e na integração com o Marmosync). Servem para verificar visualmente se cada detecção é uma vocalização ou ruído, e em que faixa de frequência o ruído da sala se concentra.
+
+| Figura | Conteúdo |
+|---|---|
+| `<bloco>.png` | Espectrograma do bloco com 0,5 s de contexto antes e depois; bordas do bloco tracejadas; linha do corte do passa-alta; rótulo e confiança no título. Gerada também para blocos descartados pelo corte de confiança, identificados como "(descartado)". |
+| `<gravação>_espectrograma.png` | Gravação inteira, com cada bloco sombreado e identificado (índice, rótulo e confiança). Ruídos estacionários aparecem como linhas horizontais; impactos, como linhas verticais. |
+
+As figuras usam o áudio **bruto** (sem o passa-alta), para mostrar tudo o que o microfone captou. Espectrograma de potência (janela de Hann; 512 amostras com 75% de sobreposição nos blocos e 2048 sem sobreposição na visão geral), em dB, com escala de cor entre os percentis 5 e 99,7.
 
 **Tabela de resultados** (`vocalization_analysis_corrected.csv`, UTF-8 com BOM, separador vírgula):
 
@@ -251,6 +265,7 @@ marmovoc/
 │   ├── classificacao.py    # Classificador e votação por bloco
 │   ├── pipeline.py         # processamento de arquivos e tabela de resultados
 │   ├── modelos.py          # download e cache do classificador (Zenodo)
+│   ├── espectrograma.py    # figuras de inspeção (blocos e visão geral)
 │   ├── duracao.py          # duração total dos blocos por gravação
 │   ├── cli.py              # comando `marmovoc`
 │   ├── gui.py              # interface `marmovoc-gui`
@@ -281,7 +296,7 @@ Se este software for utilizado em trabalhos acadêmicos, cite o repositório e, 
 @software{meneses_marmovoc,
   author  = {Meneses, David},
   title   = {marmovoc: segmentação e classificação de vocalizações de saguis},
-  version = {0.3.0},
+  version = {0.4.0},
   url     = {https://github.com/DvdMeneses/marmovoc}
 }
 
