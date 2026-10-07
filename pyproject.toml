@@ -24,6 +24,10 @@ dev = ["pytest"]
 [project.scripts]
 marmovoc = "marmovoc.cli:main"
 
+# No Windows, o pip cria Scripts/marmovoc-gui.exe (abre sem janela de console).
+[project.gui-scripts]
+marmovoc-gui = "marmovoc.gui:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 
