@@ -20,6 +20,8 @@ import traceback
 from tkinter import filedialog, messagebox, ttk
 from typing import List, Optional
 
+from marmovoc.pipeline import LIMITE_CAMINHO_WINDOWS
+
 NOME_PASTA_SAIDA = "Vocalizations_Extracted"
 
 
@@ -175,6 +177,23 @@ class JanelaMarmovoc:
             messagebox.showwarning("marmovoc", "Escolha a pasta de saída.")
             return
 
+        longo = self._caminho_mais_longo(saida)
+        if os.name == "nt" and len(longo) >= LIMITE_CAMINHO_WINDOWS:
+            messagebox.showerror(
+                "marmovoc",
+                f"A pasta de saída é funda demais: os blocos ficariam com até {len(longo)} "
+                f"caracteres no caminho (o Windows aceita {LIMITE_CAMINHO_WINDOWS - 1}).\n\n"
+                "Escolha uma pasta mais curta, por exemplo C:\\Users\\<você>\\Desktop\\saida.",
+            )
+            return
+
+        if any("_block_" in os.path.basename(a) for a in self._arquivos) and not messagebox.askyesno(
+            "marmovoc",
+            "Alguns arquivos parecem ser blocos já recortados (\"_block_\" no nome).\n"
+            "O marmovoc espera a gravação completa do experimento.\n\nProcessar mesmo assim?",
+        ):
+            return
+
         self._processando = True
         self.botao_processar.config(state="disabled")
         self.botao_abrir.config(state="disabled")
@@ -185,6 +204,13 @@ class JanelaMarmovoc:
             args=(list(self._arquivos), saida, self.classificar_var.get(), self.modelos_var.get().strip() or None),
             daemon=True,
         ).start()
+
+    def _caminho_mais_longo(self, saida: str) -> str:
+        """Pior caso do caminho de um bloco: <saida>\\<wav>\\<wav>_block_999_99m59s-99m59s.wav."""
+
+        maior = max(self._arquivos, key=lambda a: len(os.path.basename(a)))
+        base = os.path.splitext(os.path.basename(maior))[0]
+        return os.path.join(os.path.abspath(saida), base, f"{base}_block_999_99m59s-99m59s.wav")
 
     def _rodar(self, arquivos: List[str], saida: str, classificar: bool, pasta_modelos: Optional[str]) -> None:
         """Thread de fundo: só fala com a UI pela fila."""
