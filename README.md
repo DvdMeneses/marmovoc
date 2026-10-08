@@ -273,7 +273,13 @@ Com `planura_maxima=None` (ou `--sem-filtro-tonalidade`), o resultado é idênti
 
 (Comparação feita com o filtro de tonalidade desligado, que é a configuração equivalente ao script original.)
 
-**Filtro de tonalidade.** Os limites foram definidos a partir de 564 blocos classificáveis, todos inspecionados por espectrograma: 22 vocalizações anotadas manualmente (gravações de validação, um Phee e um Twitter por gravação), 531 blocos de 27 sessões de 7 animais e 11 impactos (acionamento de porta e impactos em uma sessão de habituação, confirmados visualmente e por audição).
+**Filtro de tonalidade.** Os limites foram definidos a partir das medidas de 564 blocos classificáveis:
+
+- 22 vocalizações **anotadas manualmente** (gravações de validação, um Phee e um Twitter por gravação) — verdade de referência;
+- 531 blocos de 27 sessões de 7 animais **rotulados pelo classificador**, não anotados um a um. A inspeção visual foi feita por amostragem (painéis de espectrogramas dos blocos de maior planura e de menor confiança, e espectrogramas completos de sessões), e a série de Tsik foi confirmada por audição;
+- 11 impactos (acionamento de porta e impactos em uma sessão de habituação), confirmados por espectrograma.
+
+Por isso, "vocalizações perdidas" abaixo se refere a blocos que o classificador rotulou como vocalização, e não a vocalizações verificadas individualmente.
 
 | Grupo | n | Planura (mediana / máx.) | Centroide, kHz (mín. / máx.) |
 |---|---|---|---|
@@ -293,7 +299,7 @@ Em sessões típicas, nenhuma vocalização passou de planura 0,013, e nenhum im
 | Sessão com acionamento de porta (8 impactos) | 8 | 0 |
 | Sessão de habituação sem vocalização (3 impactos) | 3 | 0 |
 
-No total: 11 de 11 impactos removidos, 0 de 553 vocalizações perdidas. Só com o limite de 0,06, 2 dos 3 impactos da sessão de habituação passariam; só com um limite de 0,04, um Tsik seria perdido e um impacto (0,041) passaria por margem mínima.
+No total: 11 de 11 impactos removidos; nenhuma das 22 vocalizações anotadas perdida; nenhum dos 531 blocos rotulados como vocalização nas sessões descartado. Só com o limite de 0,06, 2 dos 3 impactos da sessão de habituação passariam; só com um limite de 0,04, um Tsik seria perdido e um impacto (0,041) passaria por margem mínima.
 
 **Corte de confiança.** Nos mesmos dados, um corte de 70% (único ou por classe, como no MarmAudio) removeria 3 das 22 vocalizações anotadas e 161 dos 568 blocos das sessões — entre eles Twitters e trechos de Phee confirmados visualmente, classificados com 33% a 40% de confiança — e não removeria um impacto classificado como Tsik com 84%. Por isso o corte permanece em 10%.
 

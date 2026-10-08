@@ -14,7 +14,8 @@ Planura e centroide são calculados sobre o áudio já filtrado pelo
 passa-alta, só na banda acima do corte — a mesma que a detecção usa.
 
 Regra do filtro (`e_ruido_banda_larga`), definida com 564 blocos (11
-impactos, 553 vocalizações de 7 animais + validação anotada):
+impactos, 22 vocalizações anotadas e 531 blocos rotulados como vocalização
+em sessões de 7 animais):
 
 - planura > 0,06  → ruído (banda larga evidente; impactos do Zico 0,071–0,100);
 - planura > 0,035 e centroide < 9,4 kHz → ruído (impactos mais "tonais",
