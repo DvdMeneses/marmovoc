@@ -16,7 +16,14 @@ Uso rápido:
 
 from marmovoc.duracao import duracao_pasta, escrever_durations_txt
 from marmovoc.pipeline import processar_arquivo, processar_arquivos
-from marmovoc.qualidade import PLANURA_MAXIMA, planura_espectral
+from marmovoc.qualidade import (
+    CENTROIDE_MINIMO_KHZ,
+    PLANURA_MAXIMA,
+    PLANURA_SUSPEITA,
+    centroide_espectral_khz,
+    e_ruido_banda_larga,
+    planura_espectral,
+)
 from marmovoc.segmentacao import (
     ParametrosSegmentacao,
     detect_vocalizations,
@@ -37,4 +44,4 @@ def __getattr__(nome):
     raise AttributeError(nome)
 
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"

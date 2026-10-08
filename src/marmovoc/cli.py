@@ -16,7 +16,7 @@ from typing import List
 
 from marmovoc.duracao import escrever_durations_txt
 from marmovoc.pipeline import processar_arquivos
-from marmovoc.qualidade import PLANURA_MAXIMA
+from marmovoc.qualidade import CENTROIDE_MINIMO_KHZ, PLANURA_MAXIMA, PLANURA_SUSPEITA
 from marmovoc.segmentacao import ParametrosSegmentacao
 
 ENV_MODELOS = "MARMOVOC_MODELOS"
@@ -52,6 +52,7 @@ def _cmd_segmentar(args) -> int:
     df = processar_arquivos(
         wavs, args.saida, classificador, params, csv_saida=csv_saida, espectrogramas=args.espectrogramas,
         planura_maxima=None if args.sem_filtro_tonalidade else args.planura_maxima,
+        planura_suspeita=args.planura_suspeita,
     )
 
     print(f"{len(df)} bloco(s) em {len(wavs)} arquivo(s). CSV: {csv_saida}")
@@ -100,6 +101,10 @@ def main(argv=None) -> int:
     p.add_argument(
         "--planura-maxima", type=float, default=PLANURA_MAXIMA,
         help="blocos com planura espectral acima disso são descartados como ruído de banda larga",
+    )
+    p.add_argument(
+        "--planura-suspeita", type=float, default=PLANURA_SUSPEITA,
+        help=f"acima disso, o bloco também é descartado se o centroide ficar abaixo de {CENTROIDE_MINIMO_KHZ} kHz",
     )
     p.add_argument(
         "--sem-filtro-tonalidade", action="store_true",

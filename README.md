@@ -3,7 +3,7 @@
 **Segmentação e classificação automáticas de vocalizações de saguis (*Callithrix jacchus*) em gravações contínuas de experimentos comportamentais.**
 
 ![Python](https://img.shields.io/badge/python-%E2%89%A53.9-3776AB?logo=python&logoColor=white)
-![Versão](https://img.shields.io/badge/vers%C3%A3o-0.5.0-006666)
+![Versão](https://img.shields.io/badge/vers%C3%A3o-0.6.0-006666)
 ![Testado em](https://img.shields.io/badge/testado%20em-Windows-0078D6)
 
 O `marmovoc` recebe o áudio completo de uma sessão experimental (um arquivo WAV de vários minutos), localiza os trechos com vocalização, recorta cada trecho em um arquivo próprio e atribui a ele um tipo de chamada — Phee, Twitter, Trill, Tsik, Seep ou Infant cry — usando o classificador público do conjunto de dados **MarmAudio** (Lamothe et al., 2025).
@@ -37,7 +37,7 @@ flowchart LR
     B --> C["Envelope de energia<br/>(janela de 20 ms)"]
     C --> D["Limiar adaptativo<br/>→ vocalizações"]
     D --> E["Agrupamento em blocos<br/>(silêncio ≤ 1 s)"]
-    E --> T["Filtro de tonalidade<br/>(planura ≤ 0,06)"]
+    E --> T["Filtro de tonalidade<br/>(planura + centroide)"]
     T --> F["Classificador ResNet50<br/>(MarmAudio)"]
     F --> G["Blocos .wav<br/>+ tabela CSV"]
 ```
@@ -45,7 +45,7 @@ flowchart LR
 | Etapa | Módulo | Descrição resumida |
 |---|---|---|
 | Segmentação | `marmovoc.segmentacao` | Filtragem, detecção por energia e agrupamento de vocalizações próximas em blocos |
-| Qualidade | `marmovoc.qualidade` | Planura espectral e SNR de cada bloco; descarte de ruídos de banda larga |
+| Qualidade | `marmovoc.qualidade` | Planura, centroide espectral e SNR de cada bloco; descarte de ruídos de banda larga |
 | Classificação | `marmovoc.classificacao` | Inferência do tipo de chamada por vocalização; o bloco recebe o rótulo de maior confiança |
 | Orquestração | `marmovoc.pipeline` | Leitura do WAV, gravação dos blocos e montagem da tabela de resultados |
 | Modelo | `marmovoc.modelos` | Download, verificação e cache local do classificador |
@@ -111,7 +111,8 @@ marmovoc duracao resultados
 | `--cutoff` | 6000 | Frequência de corte do passa-alta (Hz) |
 | `--merge` | 1.0 | Silêncio máximo (s) entre vocalizações de um mesmo bloco |
 | `--espectrogramas` | desligada | Salva os espectrogramas de inspeção (ver [Saídas](#saídas)) |
-| `--planura-maxima` | 0,06 | Limite do filtro de tonalidade (ver [Método](#método)) |
+| `--planura-maxima` | 0,06 | Planura acima disso: descartado (ver [Método](#método)) |
+| `--planura-suspeita` | 0,035 | Planura acima disso e centroide < 9,4 kHz: descartado |
 | `--sem-filtro-tonalidade` | — | Desliga o filtro de tonalidade (resultado idêntico ao script original) |
 | `-v` | — | Log detalhado |
 
@@ -155,7 +156,7 @@ Opcionais (`--espectrogramas` na linha de comando; ligados por padrão na interf
 
 | Figura | Conteúdo |
 |---|---|
-| `<bloco>.png` | Espectrograma do bloco com 0,5 s de contexto antes e depois; bordas do bloco tracejadas; linha do corte do passa-alta; rótulo, confiança, planura e SNR no título. Gerada também para blocos descartados (pelo filtro de tonalidade ou pela confiança), identificados como tal. |
+| `<bloco>.png` | Espectrograma do bloco com 0,5 s de contexto antes e depois; bordas do bloco tracejadas; linha do corte do passa-alta; rótulo, confiança, planura, centroide e SNR no título. Gerada também para blocos descartados (pelo filtro de tonalidade ou pela confiança), identificados como tal. |
 | `<gravação>_espectrograma.png` | Gravação inteira, com cada bloco sombreado e identificado (índice, rótulo e confiança). Ruídos estacionários aparecem como linhas horizontais; impactos, como linhas verticais. |
 
 As figuras usam o áudio **bruto** (sem o passa-alta), para mostrar tudo o que o microfone captou. Espectrograma de potência (janela de Hann; 512 amostras com 75% de sobreposição nos blocos e 2048 sem sobreposição na visão geral), em dB, com escala de cor entre os percentis 5 e 99,7.
@@ -177,6 +178,7 @@ As figuras usam o áudio **bruto** (sem o passa-alta), para mostrar tudo o que o
 | `start_time_formatted` / `end_time_formatted` | texto | Início e fim em `XmYs` |
 | `spectral_flatness` | real | Planura espectral do bloco (0 = tonal, 1 = banda larga) |
 | `snr_db` | real | Pico do bloco em relação ao ruído de fundo da gravação (dB) |
+| `spectral_centroid_khz` | real | Centroide espectral do bloco acima do corte (kHz) |
 
 > **Alinhamento temporal.** Os tempos são relativos ao início do arquivo WAV. Nas gravações do Marmosync, o WAV começa alguns segundos depois do vídeo; o deslocamento exato está em `inicio_wav_relativo_experimento_s`, no arquivo `<prefixo>_SOM_INFO.csv` da sessão.
 
@@ -202,7 +204,14 @@ Vocalizações separadas por até **1 s** de silêncio são agrupadas em um mesm
 
 A detecção é **relativa**: o envelope é normalizado pelo som mais forte da gravação. Em sessões em que o animal não vocaliza, os eventos mais fortes — impactos na caixa, acionamento da porta, cliques — passam a ser detectados como blocos. Esses ruídos diferem das vocalizações pela distribuição espectral: vocalizações são **tonais** (energia concentrada na frequência fundamental e nos harmônicos), enquanto impactos são de **banda larga**.
 
-Para cada bloco, calcula-se a **planura espectral** (*spectral flatness*; razão entre as médias geométrica e aritmética do espectro de potência) na banda acima do corte do passa-alta, em quadros de 512 amostras com 75% de sobreposição; o valor do bloco é a mediana sobre a metade mais energética dos quadros. Varia de 0 (tom puro) a 1 (ruído branco). Blocos com planura **acima de 0,06** são descartados antes da classificação.
+Para cada bloco, calcula-se a **planura espectral** (*spectral flatness*; razão entre as médias geométrica e aritmética do espectro de potência) na banda acima do corte do passa-alta, em quadros de 512 amostras com 75% de sobreposição; o valor do bloco é a mediana sobre a metade mais energética dos quadros. Varia de 0 (tom puro) a 1 (ruído branco). Na mesma banda e nos mesmos quadros calcula-se o **centroide espectral** (frequência média ponderada pela potência, mediana sobre os quadros).
+
+Um bloco é descartado como ruído, antes da classificação, se:
+
+- a planura for **maior que 0,06** (banda larga evidente); **ou**
+- a planura for **maior que 0,035** e o centroide for **menor que 9,4 kHz** (impactos menos dispersos, com energia concentrada logo acima do corte).
+
+A segunda condição existe porque alguns impactos têm planura próxima da de vocalizações atípicas: séries longas de Tsik chegaram a 0,043, mas com centroide ≥ 9,6 kHz (faixa forte em ~10–12 kHz), enquanto os impactos ficaram em ≤ 9,2 kHz.
 
 Também é calculada a **SNR** do bloco: o pico do envelope em relação ao ruído de fundo da gravação (mediana do envelope), em dB. Ela é reportada na tabela, mas não usada como filtro — impactos costumam ser justamente os eventos mais fortes da sessão.
 
@@ -242,7 +251,9 @@ Demais parâmetros:
 
 | Parâmetro | Onde | Padrão | Efeito |
 |---|---|---|---|
-| `planura_maxima` | `processar_arquivo(s)`; `marmovoc.qualidade.PLANURA_MAXIMA` | 0,06 | Blocos com planura acima disso são descartados como ruído; `None` desliga o filtro |
+| `planura_maxima` | `processar_arquivo(s)`; `marmovoc.qualidade.PLANURA_MAXIMA` | 0,06 | Planura acima disso: descartado como ruído. `None` desliga o filtro de tonalidade inteiro |
+| `planura_suspeita` | `processar_arquivo(s)`; `marmovoc.qualidade.PLANURA_SUSPEITA` | 0,035 | Planura acima disso **e** centroide abaixo de `CENTROIDE_MINIMO_KHZ`: descartado. `None` desliga só esta condição |
+| `CENTROIDE_MINIMO_KHZ` | `marmovoc.qualidade` | 9,4 kHz | Centroide abaixo do qual um bloco de planura intermediária é considerado impacto |
 | `confianca_minima` | `processar_arquivo`; `marmovoc.pipeline.CONFIANCA_MINIMA_PERCENT` | 10% | Confiança mínima para o bloco entrar na tabela |
 
 Com `planura_maxima=None` (ou `--sem-filtro-tonalidade`), o resultado é idêntico ao do script de análise original.
@@ -262,24 +273,27 @@ Com `planura_maxima=None` (ou `--sem-filtro-tonalidade`), o resultado é idênti
 
 (Comparação feita com o filtro de tonalidade desligado, que é a configuração equivalente ao script original.)
 
-**Filtro de tonalidade.** O limite de planura foi definido a partir de 590 blocos: 22 vocalizações anotadas manualmente (gravações de validação, um Phee e um Twitter por gravação) e 568 blocos de 25 sessões de 5 animais, inspecionados visualmente por espectrograma.
+**Filtro de tonalidade.** Os limites foram definidos a partir de 564 blocos classificáveis, todos inspecionados por espectrograma: 22 vocalizações anotadas manualmente (gravações de validação, um Phee e um Twitter por gravação), 531 blocos de 27 sessões de 7 animais e 11 impactos (acionamento de porta e impactos em uma sessão de habituação, confirmados visualmente e por audição).
 
-| Grupo | n | Planura (mediana) | Planura (máxima) |
+| Grupo | n | Planura (mediana / máx.) | Centroide, kHz (mín. / máx.) |
 |---|---|---|---|
-| Vocalizações anotadas (Phee e Twitter) | 22 | 0,001 | 0,002 |
-| Blocos rotulados Phee | 413 | 0,000 | < 0,001 |
-| Blocos rotulados Twitter | 97 | 0,011 | 0,043 |
-| Blocos rotulados Tsik | 16 | 0,026 | 0,032 |
-| Impactos (inspeção visual; sessão com porta) | 8 | 0,080 | 0,100 |
-| Ruído de fundo (não classificável) | 34 | 0,488 | 0,553 |
+| Vocalizações anotadas (Phee e Twitter) | 22 | 0,001 / 0,002 | 7,4 / 7,5 |
+| Vocalizações das sessões (exceto série de Tsik abaixo) | 471 | 0,000 / 0,013 | 7,3 / 10,7 |
+| Série longa de Tsik (sessão atípica, confirmada por audição) | 60 | 0,027 / 0,043 | 9,6 / 10,5 |
+| Impactos — sessão com porta | 8 | 0,080 / 0,100 | 8,2 / 9,0 |
+| Impactos — sessão de habituação | 3 | 0,047 / 0,210 | 8,0 / 9,2 |
 
-Nenhuma vocalização teve planura acima de 0,043, e nenhum impacto abaixo de 0,071; o limite de 0,06 fica no intervalo vazio entre os dois grupos. Com o filtro ligado:
+Em sessões típicas, nenhuma vocalização passou de planura 0,013, e nenhum impacto ficou abaixo de 0,041 — a condição "planura > 0,035" tem folga ampla. O centroide só decide os casos raros de planura intermediária. Resultado do filtro em cada conjunto:
 
 | Conjunto | Blocos sem filtro | Blocos com filtro |
 |---|---|---|
 | Validação (22 vocalizações anotadas) | 22 | 22 |
-| Sessão com acionamento de porta | 8 (todos impactos) | 0 |
-| Sessão com 65 blocos de vocalização | 65 | 65 |
+| Sessão de habituação com 5 Phees | 5 | 5 |
+| Sessão com série longa de Tsik | 65 | 65 |
+| Sessão com acionamento de porta (8 impactos) | 8 | 0 |
+| Sessão de habituação sem vocalização (3 impactos) | 3 | 0 |
+
+No total: 11 de 11 impactos removidos, 0 de 553 vocalizações perdidas. Só com o limite de 0,06, 2 dos 3 impactos da sessão de habituação passariam; só com um limite de 0,04, um Tsik seria perdido e um impacto (0,041) passaria por margem mínima.
 
 **Corte de confiança.** Nos mesmos dados, um corte de 70% (único ou por classe, como no MarmAudio) removeria 3 das 22 vocalizações anotadas e 161 dos 568 blocos das sessões — entre eles Twitters e trechos de Phee confirmados visualmente, classificados com 33% a 40% de confiança — e não removeria um impacto classificado como Tsik com 84%. Por isso o corte permanece em 10%.
 
@@ -294,7 +308,7 @@ Nenhuma vocalização teve planura acima de 0,043, e nenhum impacto abaixo de 0,
 - **Taxa de amostragem.** O classificador foi treinado com áudio a 96 kHz e o sinal não é reamostrado antes da inferência. Gravações a 44,1 ou 48 kHz alteram a escala de frequência vista pelo modelo e não contêm energia acima de 22–24 kHz. Nos dados do laboratório, chamadas do tipo Phee foram classificadas com confiança entre 97% e 100%; as demais classes ainda não foram avaliadas nessas condições.
 - **Confiança baixa em vocalizações reais.** Nas gravações do laboratório, Twitters e trechos de Phee verdadeiros recebem confiança entre 33% e 80%. A tabela aplica um corte de 10% (ver [Validação](#validação)); a confiança deve ser lida como indicativa, não como probabilidade calibrada. Os autores do MarmAudio usam cortes por classe (Infant cry ≥ 0,5; Phee, Tsik e Twitter ≥ 0,7; Seep e Trill ≥ 0,86) em áudio a 96 kHz.
 - **Detecção relativa.** O envelope é normalizado pelo evento mais forte de cada gravação; sessões sem vocalização ainda produzem detecções. O filtro de tonalidade remove os impactos de banda larga, mas não ruídos tonais (por exemplo, apitos de equipamento na faixa das vocalizações).
-- **Limite de planura empírico.** O valor 0,06 foi definido com dados de um único laboratório e microfone. Em outras condições, verifique os espectrogramas de inspeção e ajuste `planura_maxima`.
+- **Limites empíricos.** Os limites do filtro (planura 0,06 e 0,035; centroide 9,4 kHz) foram definidos com dados de um único laboratório e microfone, com 11 impactos e uma única sessão atípica de Tsik. O centroide, em particular, tem margem estreita (9,2 × 9,6 kHz). Em outras condições, ou diante de comportamentos incomuns, confira os espectrogramas de inspeção — o título de cada um traz planura e centroide — e ajuste os parâmetros.
 - **Resolução dos nomes de arquivo.** O intervalo no nome do bloco tem resolução de 1 s; os tempos exatos estão na tabela CSV.
 - **Caminhos no Windows.** Sem suporte a caminhos longos habilitado no sistema, caminhos de saída acima de 259 caracteres não podem ser gravados; a interface gráfica verifica isso antes de iniciar.
 
@@ -307,7 +321,7 @@ marmovoc/
 ├── pyproject.toml
 ├── src/marmovoc/
 │   ├── segmentacao.py      # filtro, detecção e agrupamento
-│   ├── qualidade.py        # planura espectral, SNR e filtro de tonalidade
+│   ├── qualidade.py        # planura, centroide, SNR e filtro de tonalidade
 │   ├── classificacao.py    # Classificador e votação por bloco
 │   ├── pipeline.py         # processamento de arquivos e tabela de resultados
 │   ├── modelos.py          # download e cache do classificador (Zenodo)
@@ -342,7 +356,7 @@ Se este software for utilizado em trabalhos acadêmicos, cite o repositório e, 
 @software{meneses_marmovoc,
   author  = {Meneses, David},
   title   = {marmovoc: segmentação e classificação de vocalizações de saguis},
-  version = {0.5.0},
+  version = {0.6.0},
   url     = {https://github.com/DvdMeneses/marmovoc}
 }
 

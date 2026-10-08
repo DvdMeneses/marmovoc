@@ -19,7 +19,16 @@ import soundfile as sf
 
 from marmovoc.classificacao import Classificador, classificar_bloco
 from marmovoc.espectrograma import salvar_espectrograma_bloco, salvar_visao_geral
-from marmovoc.qualidade import PLANURA_MAXIMA, envelope, piso_de_ruido_db, planura_espectral, snr_db
+from marmovoc.qualidade import (
+    PLANURA_MAXIMA,
+    PLANURA_SUSPEITA,
+    centroide_espectral_khz,
+    e_ruido_banda_larga,
+    envelope,
+    piso_de_ruido_db,
+    planura_espectral,
+    snr_db,
+)
 from marmovoc.segmentacao import ParametrosSegmentacao, nome_arquivo_bloco, segmentar
 
 log = logging.getLogger(__name__)
@@ -46,6 +55,8 @@ COLUNAS = [
     # Adicionadas na 0.5.0 (no fim, para não deslocar as colunas antigas):
     "spectral_flatness",
     "snr_db",
+    # Adicionada na 0.6.0:
+    "spectral_centroid_khz",
 ]
 
 
@@ -57,13 +68,16 @@ def processar_arquivo(
     confianca_minima: float = CONFIANCA_MINIMA_PERCENT,
     espectrogramas: bool = False,
     planura_maxima: Optional[float] = PLANURA_MAXIMA,
+    planura_suspeita: Optional[float] = PLANURA_SUSPEITA,
 ) -> List[Dict[str, Any]]:
     """Segmenta um WAV, salva cada bloco em `pasta_saida/<nome do wav>/` e
     devolve uma linha por bloco aceito (colunas em `COLUNAS`).
 
-    Blocos com planura espectral acima de `planura_maxima` (cliques,
-    impactos, chiados) são descartados antes da classificação; `None`
-    desliga esse filtro. O .wav dos blocos descartados é salvo mesmo assim.
+    Blocos de banda larga (cliques, impactos, chiados) são descartados antes
+    da classificação — regra em `qualidade.e_ruido_banda_larga`.
+    `planura_maxima=None` desliga o filtro; `planura_suspeita=None` deixa só
+    o limite de planura (comportamento da 0.5.0). O .wav dos blocos
+    descartados é salvo mesmo assim.
 
     Com `espectrogramas`, salva também um PNG por bloco (inclusive dos
     descartados, identificados no título) e `<nome do wav>_espectrograma.png`
@@ -103,15 +117,17 @@ def processar_arquivo(
             )
         sf.write(caminho_bloco, audio_filtrado[inicio:fim], sample_rate)
 
-        planura = planura_espectral(audio_filtrado[inicio:fim], sample_rate, f_min_hz=params.cutoff_hz)
+        trecho = audio_filtrado[inicio:fim]
+        planura = planura_espectral(trecho, sample_rate, f_min_hz=params.cutoff_hz)
+        centroide = centroide_espectral_khz(trecho, sample_rate, f_min_hz=params.cutoff_hz)
         snr = snr_db(env, inicio, fim, piso_db)
 
-        if planura_maxima is not None and planura > planura_maxima:
+        if e_ruido_banda_larga(planura, centroide, planura_maxima, planura_suspeita):
             # Ruído de banda larga: nem passa pelo classificador.
             descartados_banda_larga += 1
             resultado = None
             aceito = False
-            rotulo = f"descartado: banda larga (planura {planura:.3f})"
+            rotulo = "descartado: banda larga"
         elif classificador is not None:
             resultado = classificar_bloco(classificador, audio_filtrado, bloco)
             aceito = resultado is not None and resultado["confidence_percent"] >= confianca_minima
@@ -131,7 +147,8 @@ def processar_arquivo(
             salvar_espectrograma_bloco(
                 audio_data, sample_rate, bloco["start_time"], bloco["end_time"],
                 os.path.splitext(caminho_bloco)[0] + ".png",
-                titulo=f"{nome_bloco}   —   {rotulo or 'segmentado'}   |   planura {planura:.3f}   SNR {snr:.0f} dB",
+                titulo=(f"{nome_bloco}\n{rotulo or 'segmentado'}   |   planura {planura:.3f}   |   "
+                        f"centroide {centroide:.1f} kHz   |   SNR {snr:.0f} dB"),
                 cutoff_hz=params.cutoff_hz,
             )
 
@@ -155,6 +172,7 @@ def processar_arquivo(
                 "end_time_formatted": f"{int(bloco['end_time'] // 60)}m {int(bloco['end_time'] % 60)}s",
                 "spectral_flatness": round(planura, 4),
                 "snr_db": round(snr, 1),
+                "spectral_centroid_khz": round(centroide, 2),
             }
         )
 
@@ -182,6 +200,7 @@ def processar_arquivos(
     csv_saida: Optional[str] = None,
     espectrogramas: bool = False,
     planura_maxima: Optional[float] = PLANURA_MAXIMA,
+    planura_suspeita: Optional[float] = PLANURA_SUSPEITA,
 ):
     """Roda `processar_arquivo` em vários WAVs (um erro não interrompe os
     outros) e devolve um DataFrame. Com `csv_saida`, grava também o CSV
@@ -196,6 +215,7 @@ def processar_arquivos(
                 processar_arquivo(
                     caminho, pasta_saida, classificador, params,
                     espectrogramas=espectrogramas, planura_maxima=planura_maxima,
+                    planura_suspeita=planura_suspeita,
                 )
             )
         except Exception as e:

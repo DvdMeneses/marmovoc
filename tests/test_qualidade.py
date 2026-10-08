@@ -7,7 +7,15 @@ import numpy as np
 import soundfile as sf
 
 from marmovoc.pipeline import COLUNAS, processar_arquivo
-from marmovoc.qualidade import PLANURA_MAXIMA, envelope, piso_de_ruido_db, planura_espectral, snr_db
+from marmovoc.qualidade import (
+    PLANURA_MAXIMA,
+    centroide_espectral_khz,
+    e_ruido_banda_larga,
+    envelope,
+    piso_de_ruido_db,
+    planura_espectral,
+    snr_db,
+)
 from marmovoc.segmentacao import highpass_filter
 
 SR = 48000
@@ -66,3 +74,23 @@ def test_filtro_desligado_mantem_tudo(tmp_path):
     linhas = processar_arquivo(str(wav), str(tmp_path / "saida"), planura_maxima=None)
 
     assert len(linhas) == 2
+
+
+def test_centroide_fica_na_frequencia_do_tom():
+    filtrado = highpass_filter(_gravacao(tons=[(1, 2)], duracao=3), SR)
+    assert abs(centroide_espectral_khz(filtrado[int(1.1 * SR):int(1.9 * SR)], SR) - 8.0) < 0.3
+
+
+def test_regra_de_banda_larga():
+    # banda larga evidente: sai, qualquer que seja o centroide
+    assert e_ruido_banda_larga(0.08, 15.0)
+    # planura intermediária + energia logo acima do corte (impactos do Café)
+    assert e_ruido_banda_larga(0.041, 7.96)
+    # planura intermediária + faixa alta (séries de Tsik): fica
+    assert not e_ruido_banda_larga(0.043, 10.46)
+    # vocalização típica
+    assert not e_ruido_banda_larga(0.0002, 7.6)
+    # segunda regra desligada: só o limite de 0,06
+    assert not e_ruido_banda_larga(0.041, 7.96, planura_suspeita=None)
+    # filtro desligado
+    assert not e_ruido_banda_larga(0.5, 8.0, planura_maxima=None)

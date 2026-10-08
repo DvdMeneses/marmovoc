@@ -87,7 +87,7 @@ def salvar_espectrograma_bloco(
     f, t, db = calcular(trecho, sample_rate, nperseg=512, noverlap=384)
     vmin, vmax = _limites_cor(db)
 
-    fig = _figura(8, 3.6)
+    fig = _figura(8.5, 3.9)
     ax = fig.add_subplot(1, 1, 1)
     malha = ax.pcolormesh(t + deslocamento, f, db, shading="auto", cmap="magma", vmin=vmin, vmax=vmax)
     for borda in (inicio_s, fim_s):
