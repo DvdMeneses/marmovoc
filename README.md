@@ -180,7 +180,7 @@ As figuras usam o áudio **bruto** (sem o passa-alta), para mostrar tudo o que o
 | `snr_db` | real | Pico do bloco em relação ao ruído de fundo da gravação (dB) |
 | `spectral_centroid_khz` | real | Centroide espectral do bloco acima do corte (kHz) |
 
-> **Alinhamento temporal.** Os tempos são relativos ao início do arquivo WAV. Nas gravações do Marmosync, o WAV começa alguns segundos depois do vídeo; o deslocamento exato está em `inicio_wav_relativo_experimento_s`, no arquivo `<prefixo>_SOM_INFO.csv` da sessão.
+> **Alinhamento temporal.** Os tempos são relativos ao início do arquivo WAV. Nas gravações do Marmosync, o WAV começa logo antes do vídeo (em sessões anteriores a 09/10/2026, alguns segundos depois); o deslocamento exato está em `inicio_wav_relativo_experimento_s`, no arquivo `<prefixo>_SOM_INFO.csv` da sessão.
 
 ---
 
